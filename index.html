@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Girasoles</title>
+<style>
+  :root {
+    --fondo: #e8eedc;
+    --tinta: #1d1d1b;
+    --oro: #d4a62a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(circle at 50% 35%, #f4f7ea, var(--fondo) 70%);
+    color: var(--tinta);
+    font-family: Georgia, "Times New Roman", serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 16px; overflow: hidden;
+  }
+  .mensaje {
+    min-height: 3.2em; width: min(90vw, 460px); text-align: center;
+    font-size: clamp(1.3rem, 4.5vw, 1.8rem); font-style: italic; line-height: 1.35;
+    display: grid; place-items: center; position: relative;
+  }
+  .mensaje span { grid-area: 1 / 1; transition: opacity .9s ease, transform .9s ease; }
+  #final { opacity: 0; transform: translateY(10px); }
+  .terminado #inicio { opacity: 0; transform: translateY(-10px); }
+  .terminado #final { opacity: 1; transform: translateY(0); transition-delay: .5s; }
+
+  svg { width: min(92vw, 440px); max-height: 72vh; height: auto; overflow: visible; }
+
+  .flor {
+    cursor: pointer; outline: none;
+    transform-box: fill-box; transform-origin: center;
+    transition: transform .8s cubic-bezier(.2,.8,.2,1), opacity .8s ease, filter .3s;
+  }
+  .flor:hover, .flor:focus-visible { transform: scale(1.07) rotate(-3deg); filter: drop-shadow(0 0 6px rgba(212,166,42,.8)); }
+  .flor.quitada { transform: scale(1.5) rotate(28deg); opacity: 0; pointer-events: none; filter: blur(3px); }
+  .tallo { stroke: #3f6b2f; stroke-width: 4; stroke-linecap: round; fill: none; transition: opacity .9s ease .1s; }
+  .tallo.quitado { opacity: 0; }
+
+  .onda {
+    fill: none; stroke: var(--oro); stroke-width: 3;
+    transform-box: fill-box; transform-origin: center;
+    animation: onda .9s ease-out forwards; pointer-events: none;
+  }
+  @keyframes onda { from { transform: scale(.6); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .01s !important; animation-duration: .01s !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mensaje" id="mensaje" aria-live="polite">
+  <span id="inicio"></span>
+  <span id="final"></span>
+</div>
+
+<svg viewBox="0 0 400 560" role="group" aria-label="Ramo de girasoles">
+  <defs>
+    <radialGradient id="centro" cx="50%" cy="45%" r="60%">
+      <stop offset="0" stop-color="#7a4a22"/>
+      <stop offset="1" stop-color="#3d2210"/>
+    </radialGradient>
+    <linearGradient id="petalo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd84a"/>
+      <stop offset="1" stop-color="#f5a800"/>
+    </linearGradient>
+  </defs>
+
+  <g id="tallos"></g>
+  <g id="flores"></g>
+
+  <!-- Ramo: envoltorio negro con borde dorado -->
+  <path d="M 70 310 Q 200 285 330 310 L 232 548 Q 200 556 168 548 Z"
+        fill="#0d0d0d" stroke="var(--oro)" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M 100 330 L 182 540 M 300 330 L 218 540 M 200 325 L 200 548"
+        stroke="var(--oro)" stroke-width="1.5" opacity=".35"/>
+  <path d="M 148 430 Q 200 442 252 430" fill="none" stroke="var(--oro)" stroke-width="6" stroke-linecap="round"/>
+</svg>
+
+<script>
+  // ============================================================
+  //  ✏️  EDITA AQUÍ TUS MENSAJES
+  // ============================================================
+  const MENSAJE_INICIAL = "Toca cada girasol";
+  const MENSAJE_FINAL   = "Girasoles para la persona mas especial en mi vida, te amo, muamuamua";
+  // ============================================================
+
+  // Girasoles: x, y, radio, rotación
+  const GIRASOLES = [
+    { x: 200, y: 105, r: 54, rot: 0   },
+    { x: 112, y: 168, r: 46, rot: 12  },
+    { x: 288, y: 168, r: 46, rot: -10 },
+    { x: 68,  y: 262, r: 38, rot: 20  },
+    { x: 332, y: 262, r: 38, rot: -18 },
+    { x: 158, y: 245, r: 42, rot: 6   },
+    { x: 244, y: 248, r: 42, rot: -8  }
+  ];
+
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  };
+
+  document.getElementById("inicio").textContent = MENSAJE_INICIAL;
+  document.getElementById("final").textContent = MENSAJE_FINAL;
+
+  const tallos = document.getElementById("tallos");
+  const flores = document.getElementById("flores");
+  let restantes = GIRASOLES.length;
+
+  function crearFlor(g) {
+    const flor = el("g", { class: "flor", tabindex: 0, role: "button", "aria-label": "Girasol" });
+    const cuerpo = el("g", { transform: `translate(${g.x} ${g.y}) rotate(${g.rot})` });
+    const R = g.r;
+
+    // Dos anillos de pétalos
+    [[16, 0, 1], [16, Math.PI / 16, .88]].forEach(([n, off, esc]) => {
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * 360 + (off * 180) / Math.PI;
+        cuerpo.appendChild(el("ellipse", {
+          cx: 0, cy: -R * .72 * esc, rx: R * .17, ry: R * .38 * esc,
+          fill: "url(#petalo)", stroke: "#d98e00", "stroke-width": .8,
+          transform: `rotate(${a})`
+        }));
+      }
+    });
+
+    // Centro con semillas (ángulo áureo)
+    cuerpo.appendChild(el("circle", { r: R * .44, fill: "url(#centro)" }));
+    for (let i = 1; i < 34; i++) {
+      const rad = R * .40 * Math.sqrt(i / 34);
+      const ang = i * 2.39996;
+      cuerpo.appendChild(el("circle", {
+        cx: Math.cos(ang) * rad, cy: Math.sin(ang) * rad, r: R * .028, fill: "#c98a3c", opacity: .7
+      }));
+    }
+
+    flor.appendChild(cuerpo);
+
+    // Tallo hacia la base del ramo
+    const tallo = el("path", {
+      class: "tallo",
+      d: `M ${g.x} ${g.y + R * .4} Q ${(g.x + 200) / 2} ${g.y + 140} 200 400`
+    });
+    tallos.appendChild(tallo);
+
+    const quitar = () => {
+      if (flor.classList.contains("quitada")) return;
+      flor.classList.add("quitada");
+      tallo.classList.add("quitado");
+      const onda = el("circle", { class: "onda", cx: g.x, cy: g.y, r: R });
+      flores.appendChild(onda);
+      setTimeout(() => onda.remove(), 1000);
+      if (--restantes === 0) setTimeout(() => document.getElementById("mensaje").classList.add("terminado"), 600);
+    };
+    flor.addEventListener("click", quitar);
+    flor.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); quitar(); } });
+    flores.appendChild(flor);
+  }
+
+  GIRASOLES.forEach(crearFlor);
+</script>
+</body>
+</html>
